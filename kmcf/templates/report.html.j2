@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kmcf 复盘 {{ r.trade_date }}</title>
+<style>
+:root {
+  --bg: #f5f6f8; --card: #ffffff; --card-2: #f9fafb; --text: #1c2024; --muted: #60646c; --faint: #8b8d98;
+  --border: #e3e5e9; --accent: #3e63dd; --accent-soft: #edf1fd;
+  --up: #e5484d; --up-soft: #feebec; --down: #12a150; --down-soft: #e6f6eb; --flat: #8b8d98;
+  --warn: #b25e00; --warn-soft: #fff4e0;
+  --radius: 10px; --shadow: 0 1px 2px rgba(16, 24, 40, .05);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111214; --card: #191a1d; --card-2: #1f2124; --text: #edeef0; --muted: #a0a3ab; --faint: #6f727a;
+    --border: #2c2e33; --accent: #7b9cff; --accent-soft: #1c2440;
+    --up: #ff6369; --up-soft: #3b1219; --down: #3dd68c; --down-soft: #0f2e1d; --flat: #8b8d98;
+    --warn: #ffb224; --warn-soft: #2e2009; --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111214; --card: #191a1d; --card-2: #1f2124; --text: #edeef0; --muted: #a0a3ab; --faint: #6f727a;
+  --border: #2c2e33; --accent: #7b9cff; --accent-soft: #1c2440;
+  --up: #ff6369; --up-soft: #3b1219; --down: #3dd68c; --down-soft: #0f2e1d; --flat: #8b8d98;
+  --warn: #ffb224; --warn-soft: #2e2009; --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.6 "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.num, .kpi-value, td { font-variant-numeric: tabular-nums; }
+a { color: var(--accent); text-decoration: none; }
+
+/* 顶栏 */
+.topbar { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+.topbar-inner { max-width: 1280px; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.brand { font-weight: 700; letter-spacing: .5px; font-size: 15px; }
+.brand span { color: var(--accent); }
+.toc { display: flex; gap: 4px; flex-wrap: wrap; }
+.toc a { color: var(--muted); padding: 4px 10px; border-radius: 999px; font-size: 13px; }
+.toc a:hover { background: var(--card-2); color: var(--text); }
+
+main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 40px; }
+.hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 4px 0 18px; }
+.hero h1 { margin: 0; font-size: 26px; line-height: 1.25; font-weight: 700; }
+.hero .sub { color: var(--muted); margin-top: 4px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--border); color: var(--muted); }
+.chip.ok { color: var(--down); border-color: color-mix(in srgb, var(--down) 35%, var(--border)); }
+.chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, var(--border)); }
+
+.banner { background: var(--warn-soft); color: var(--warn); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 18px; }
+.card > h2 { margin: 0 0 14px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+.card > h2 .idx { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 13px; }
+
+/* 今日要点 */
+.highlights { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 24px; }
+.hl-group h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.hl-group ul, .summary { margin: 0; padding-left: 18px; }
+.hl-group li, .summary li { margin: 3px 0; }
+
+/* AI 复盘点评 */
+.ai-card > h2 { flex-wrap: wrap; row-gap: 2px; }
+.ai-card > h2 .idx { width: auto; padding: 0 6px; font-size: 12px; letter-spacing: .5px; }
+.ai-meta { font-size: 12px; font-weight: 400; color: var(--faint); }
+.ai-body { line-height: 1.75; }
+.ai-body p { margin: 0 0 8px; }
+.ai-body ul { margin: 0 0 8px; padding-left: 20px; }
+.ai-body li { margin: 4px 0; }
+.ai-foot { color: var(--faint); font-size: 12px; margin: 10px 0 0; }
+.ai-error { color: var(--faint); font-size: 13px; }
+
+.alert { background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
+.alert ul { margin: 4px 0 0; padding-left: 18px; }
+.summary { background: var(--card-2); border-radius: 8px; padding: 10px 14px 10px 30px; margin-bottom: 14px; }
+
+/* KPI */
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.kpi { background: var(--card-2); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.kpi-label { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-value { font-size: 20px; font-weight: 700; line-height: 1.3; margin-top: 2px; white-space: nowrap; }
+.kpi-sub { color: var(--faint); font-size: 12px; margin-top: 2px; }
+.kpi.tone-up .kpi-value, .tone-up { color: var(--up); }
+.kpi.tone-down .kpi-value, .tone-down { color: var(--down); }
+.kpi.tone-flat .kpi-value, .tone-flat { color: var(--flat); }
+.kpi.tone-warn .kpi-value, .tone-warn { color: var(--warn); }
+
+/* 内容块 */
+.blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.block { min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.block.span-full { grid-column: 1 / -1; }
+.block h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.block-note { color: var(--faint); font-size: 12px; margin: 8px 0 0; }
+.chart { width: 100%; }
+.chart-fail { display: grid; place-items: center; color: var(--faint); font-size: 13px; height: 100%; }
+.empty { color: var(--faint); font-size: 13px; padding: 12px 0; }
+
+.table-wrap { max-height: 520px; overflow: auto; border-radius: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--card); color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; z-index: 1; }
+th:hover { color: var(--text); }
+th.sorted-asc::after { content: " ▲"; font-size: 10px; }
+th.sorted-desc::after { content: " ▼"; font-size: 10px; }
+tbody tr:hover { background: var(--card-2); }
+.al-left { text-align: left; } .al-right { text-align: right; } .al-center { text-align: center; }
+
+.ladder { display: flex; flex-direction: column; gap: 8px; }
+.ladder-row { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: start; }
+.ladder-label { font-weight: 700; color: var(--up); background: var(--up-soft); border-radius: 6px; text-align: center; padding: 4px 0; }
+.ladder-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.lchip { background: var(--card-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 13px; }
+.lchip small { color: var(--faint); margin-left: 4px; }
+
+.notes { color: var(--faint); font-size: 12px; margin: 12px 0 0; padding-left: 18px; }
+footer { color: var(--faint); font-size: 12px; text-align: center; padding: 8px 0 24px; }
+
+@media (max-width: 900px) {
+  .blocks { grid-template-columns: minmax(0, 1fr); }
+  main, .topbar-inner { padding-left: 16px; padding-right: 16px; }
+  .hero h1 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">kmcf<span> ·</span> A股复盘</div>
+    <nav class="toc">
+      <a href="#highlights">今日要点</a>
+      {% if r.ai %}<a href="#ai-review">AI 点评</a>{% endif %}
+      {% for s in r.sections %}<a href="#{{ s.id }}">{{ s.title }}</a>{% endfor %}
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div>
+      <h1>{{ r.trade_date }} {{ r.weekday }} 复盘</h1>
+      <div class="sub">生成于 {{ r.generated_at }}</div>
+    </div>
+    <div class="chips">
+      {% if r.snapshot_ok %}<span class="chip ok">收盘数据</span>{% else %}<span class="chip warn">部分实时数据不可用</span>{% endif %}
+      {% if r.calendar_approximate %}<span class="chip warn">交易日历为估算</span>{% endif %}
+      <span class="chip">v{{ r.version }}</span>
+    </div>
+  </div>
+
+  {% for b in r.banners %}<div class="banner">{{ b }}</div>{% endfor %}
+
+  <section class="card" id="highlights">
+    <h2><span class="idx">★</span>今日要点</h2>
+    <div class="highlights">
+      {% for s in r.sections if s.summary %}
+      <div class="hl-group">
+        <h3>{{ s.title }}</h3>
+        <ul>{% for line in s.summary[:3] %}<li>{{ line }}</li>{% endfor %}</ul>
+      </div>
+      {% else %}
+      <div class="empty">暂无要点</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if r.ai %}
+  <section class="card ai-card" id="ai-review">
+    <h2><span class="idx">AI</span>AI 复盘点评
+      {% if not r.ai.error %}<small class="ai-meta">由 {{ r.ai.provider or "AI" }}（{{ r.ai.model or "未知模型" }}）根据本报告数据生成 · 仅供参考，不构成投资建议</small>{% endif %}
+    </h2>
+    {% if r.ai.error %}
+    <div class="ai-error">AI 复盘点评未生成：{{ r.ai.error }}</div>
+    {% else %}
+    <div class="ai-body">
+      {% for b in r.ai.blocks or [] %}
+        {% if b.type == "ul" %}
+        <ul>{% for it in b["items"] %}<li>{{ it }}</li>{% endfor %}</ul>
+        {% elif b.text %}
+        <p>{{ b.text }}</p>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <p class="ai-foot">以上内容为 AI 生成，仅供参考，不构成投资建议；AI 可能误读数据，请以上方原始数据为准。</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% for s in r.sections %}
+  <section class="card" id="{{ s.id }}">
+    <h2><span class="idx">{{ loop.index }}</span>{{ s.title }}</h2>
+
+    {% if s.errors %}
+    <div class="alert">部分数据未能获取：
+      <ul>{% for e in s.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    {% if s.summary %}
+    <ul class="summary">{% for line in s.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {% if s.kpis %}
+    <div class="kpis">
+      {% for k in s.kpis %}
+      <div class="kpi tone-{{ k.tone }}">
+        <div class="kpi-label" title="{{ k.label }}">{{ k.label }}</div>
+        <div class="kpi-value">{{ k.value }}</div>
+        {% if k.sub %}<div class="kpi-sub">{{ k.sub }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if s.blocks %}
+    <div class="blocks">
+      {% for b in s.blocks %}
+      <div class="block span-{{ b.span }}">
+        {% if b.title %}<h3>{{ b.title }}</h3>{% endif %}
+
+        {% if b.type == "chart" %}
+        <div class="chart" id="{{ b.chart_id }}" style="height: {{ b.height }}px"></div>
+
+        {% elif b.type == "table" %}
+          {% if b.empty %}
+          <div class="empty">暂无数据</div>
+          {% else %}
+          <div class="table-wrap">
+            <table class="sortable">
+              <thead><tr>
+                <th class="al-center" data-idx="-1">#</th>
+                {% for c in b.columns %}<th class="al-{{ c.align }}" data-idx="{{ loop.index0 }}">{{ c.label }}</th>{% endfor %}
+              </tr></thead>
+              <tbody>
+                {% for row in b.rows %}
+                <tr>
+                  <td class="al-center num" style="color: var(--faint)">{{ loop.index }}</td>
+                  {% for cell in row %}<td class="al-{{ b.columns[loop.index0].align }} tone-{{ cell.tone }}" data-v="{{ cell.v }}">{{ cell.text }}</td>{% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+
+        {% elif b.type == "ladder" %}
+          {% if b.levels %}
+          <div class="ladder">
+            {% for lv in b.levels %}
+            <div class="ladder-row">
+              <div class="ladder-label">{{ lv.label }}</div>
+              <div class="ladder-items">
+                {% for it in lv["items"] %}<span class="lchip tone-{{ it.tone or 'neutral' }}">{{ it.text }}{% if it.sub %}<small>{{ it.sub }}</small>{% endif %}</span>{% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty">暂无数据</div>
+          {% endif %}
+        {% endif %}
+
+        {% if b.note %}<p class="block-note">{{ b.note }}</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if s.notes %}
+    <ul class="notes">{% for n in s.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  <footer>
+    数据来源：AKShare 及东方财富、同花顺、新浪财经、腾讯财经、乐咕乐股、上交所/深交所官网等公开数据。本报告由 kmcf 自动生成，仅供复盘参考，不构成投资建议。<br>
+    接口请求 {{ r.stats.network }} 次 · 缓存命中 {{ r.stats.cache }} 次 · 失败 {{ r.stats.failed }} 次 · 用时 {{ r.elapsed }} 秒
+  </footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var CHARTS = {{ charts_json | safe }};
+  var SOURCES = {{ echarts_sources_json | safe }};
+  var instances = [];
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function isObj(x) { return x && typeof x === "object" && !Array.isArray(x); }
+  // 只补默认值，不覆盖模块给出的设置
+  function fill(target, defaults) {
+    Object.keys(defaults).forEach(function (k) {
+      if (target[k] === undefined) target[k] = defaults[k];
+      else if (isObj(target[k]) && isObj(defaults[k])) fill(target[k], defaults[k]);
+    });
+    return target;
+  }
+  function eachAxis(opt, key, fn) {
+    var a = opt[key];
+    if (!a) return;
+    (Array.isArray(a) ? a : [a]).forEach(fn);
+  }
+  function themed(opt) {
+    var muted = cssVar("--muted"), border = cssVar("--border"), text = cssVar("--text"), card = cssVar("--card");
+    fill(opt, {
+      backgroundColor: "transparent",
+      textStyle: { color: muted, fontFamily: getComputedStyle(document.body).fontFamily },
+      animationDuration: 400
+    });
+    if (opt.tooltip) fill(opt.tooltip, {
+      confine: true, backgroundColor: card, borderColor: border, textStyle: { color: text, fontSize: 12 }
+    });
+    if (opt.legend) (Array.isArray(opt.legend) ? opt.legend : [opt.legend]).forEach(function (l) {
+      fill(l, { textStyle: { color: muted }, inactiveColor: border });
+    });
+    if (opt.title) (Array.isArray(opt.title) ? opt.title : [opt.title]).forEach(function (t) {
+      fill(t, { textStyle: { color: text, fontSize: 13 } });
+    });
+    ["xAxis", "yAxis"].forEach(function (key) {
+      eachAxis(opt, key, function (ax) {
+        fill(ax, {
+          axisLine: { lineStyle: { color: border } },
+          axisTick: { lineStyle: { color: border } },
+          axisLabel: { color: muted },
+          splitLine: { lineStyle: { color: border, type: "dashed" } },
+          nameTextStyle: { color: muted }
+        });
+      });
+    });
+    return opt;
+  }
+  function initCharts() {
+    CHARTS.forEach(function (c) {
+      var el = document.getElementById(c.id);
+      if (!el) return;
+      try {
+        var chart = echarts.init(el, null, { renderer: "canvas" });
+        chart.setOption(themed(c.option));
+        instances.push(chart);
+      } catch (e) {
+        el.innerHTML = '<div class="chart-fail">图表渲染失败：' + String(e).replace(/</g, "&lt;") + "</div>";
+      }
+    });
+    var t = null;
+    window.addEventListener("resize", function () {
+      clearTimeout(t);
+      t = setTimeout(function () { instances.forEach(function (i) { i.resize(); }); }, 120);
+    });
+  }
+  function chartsUnavailable() {
+    CHARTS.forEach(function (c) {
+      var el = document.getElementById(c.id);
+      if (el) el.innerHTML = '<div class="chart-fail">图表库加载失败（首次查看需要联网）</div>';
+    });
+  }
+  function load(i) {
+    if (window.echarts) return initCharts();
+    if (i >= SOURCES.length) return chartsUnavailable();
+    var s = document.createElement("script");
+    s.src = SOURCES[i];
+    s.onload = function () { window.echarts ? initCharts() : load(i + 1); };
+    s.onerror = function () { s.remove(); load(i + 1); };
+    document.head.appendChild(s);
+  }
+  if (CHARTS.length) load(0);
+
+  // 表格点击表头排序
+  document.querySelectorAll("table.sortable").forEach(function (table) {
+    var ths = table.querySelectorAll("th");
+    ths.forEach(function (th, colPos) {
+      th.addEventListener("click", function () {
+        var tbody = table.tBodies[0];
+        var rows = Array.prototype.slice.call(tbody.rows);
+        var asc = !th.classList.contains("sorted-desc") && th.classList.contains("sorted-asc") ? false
+                : th.classList.contains("sorted-desc") ? true : false;
+        ths.forEach(function (h) { h.classList.remove("sorted-asc", "sorted-desc"); });
+        th.classList.add(asc ? "sorted-asc" : "sorted-desc");
+        function key(r) {
+          var cell = r.cells[colPos];
+          var v = cell.getAttribute("data-v");
+          if (v === null) v = cell.textContent;
+          var n = parseFloat(v);
+          return isNaN(n) || !/^-?[\d.eE+-]+$/.test(v) ? { s: v } : { n: n };
+        }
+        rows.sort(function (a, b) {
+          var ka = key(a), kb = key(b), r;
+          if (ka.n !== undefined && kb.n !== undefined) r = ka.n - kb.n;
+          else r = String(ka.s !== undefined ? ka.s : ka.n).localeCompare(String(kb.s !== undefined ? kb.s : kb.n), "zh-CN");
+          return asc ? r : -r;
+        });
+        rows.forEach(function (r) { tbody.appendChild(r); });
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

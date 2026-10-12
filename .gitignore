@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+reports/
+logs/
+build/
+dist/
+*.spec
+!kmcf.spec
+*.tmp
